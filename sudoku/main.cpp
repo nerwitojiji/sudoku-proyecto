@@ -36,23 +36,28 @@ struct Tracker {
     }
 };
 
-// Función recursiva para resolver el Sudoku
+// Resolver una región del Sudoku
 bool solveSudoku(vector<vector<int>>& board, int n, Tracker& tracker) {
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < n; col++) {
+    bool solved = false;
+
+    for (int row = 0; row < n && !solved; row++) {
+        for (int col = 0; col < n && !solved; col++) {
             if (board[row][col] == 0) { // Si la celda está vacía
                 for (int num = 1; num <= n; num++) {
                     if (tracker.isValid(row, col, num)) {
                         board[row][col] = num;
                         tracker.placeNumber(row, col, num);
 
-                        if (solveSudoku(board, n, tracker)) return true;
+                        // Llamada recursiva
+                        solved = solveSudoku(board, n, tracker);
+                        if (solved) break;
 
+                        // Deshacer el cambio
                         board[row][col] = 0;
                         tracker.removeNumber(row, col, num);
                     }
                 }
-                return false; // No se encontró un número válido
+                return solved; // Si ninguna solución fue encontrada
             }
         }
     }
@@ -69,6 +74,22 @@ void initializeTracker(const vector<vector<int>>& board, int n, Tracker& tracker
             }
         }
     }
+}
+
+// Resolver el Sudoku en paralelo
+bool solveSudokuParallel(vector<vector<int>>& board, int n, Tracker& tracker) {
+    bool foundSolution = false;
+
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            #pragma omp task shared(foundSolution)
+            foundSolution = solveSudoku(board, n, tracker);
+        }
+    }
+
+    return foundSolution;
 }
 
 // Función para imprimir el tablero
@@ -99,7 +120,8 @@ void saveBoardToJson(const vector<vector<int>>& board, int n, const string& outp
 int main() {
     string filename;
 
-    // Solicitar el nombre del archivo JSON
+    cout << "Número total de hilos disponibles: " << omp_get_max_threads() << endl;
+
     cout << "Ingrese el nombre del archivo JSON: ";
     cin >> filename;
 
@@ -132,7 +154,7 @@ int main() {
     initializeTracker(board, n, tracker);
 
     double start = omp_get_wtime();
-    if (solveSudoku(board, n, tracker)) {
+    if (solveSudokuParallel(board, n, tracker)) {
         double end = omp_get_wtime();
         cout << "Tablero resuelto:" << endl;
         printBoard(board, n);
@@ -144,6 +166,3 @@ int main() {
 
     return 0;
 }
-
-
-
